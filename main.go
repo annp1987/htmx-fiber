@@ -48,7 +48,7 @@ type Pagination struct {
 // Repository defines the data access layer interface
 type Repository interface {
 	GetBook(ctx context.Context, id int) (*Book, error)
-	ListBooks(ctx context.Context, limit, offset int) (*PaginatedBooks, error)
+	ListBooks(ctx context.Context, limit, offset int, search, filter string) (*PaginatedBooks, error)
 	BulkUpdateBooksSalesStatus(ctx context.Context, ids []int, status bool) error
 	UpdateBook(ctx context.Context, book *Book) error
 	DeleteBooks(ctx context.Context, ids []int) error
@@ -76,15 +76,40 @@ func (r *SQLiteRepository) GetBook(ctx context.Context, id int) (*Book, error) {
 	return book, nil
 }
 
-func (r *SQLiteRepository) ListBooks(ctx context.Context, limit, offset int) (*PaginatedBooks, error) {
+func (r *SQLiteRepository) ListBooks(ctx context.Context, limit, offset int, search, filter string) (*PaginatedBooks, error) {
+	// 1. Build the WHERE clause and arguments dynamically
+	var whereClauses []string
+	var args []interface{}
+
+	if search != "" {
+		whereClauses = append(whereClauses, "title LIKE ?")
+		args = append(args, "%"+search+"%")
+	}
+
+	if filter == "on_sale" {
+		whereClauses = append(whereClauses, "has_sales = 1")
+	} else if filter == "not_on_sale" {
+		whereClauses = append(whereClauses, "has_sales = 0")
+	}
+
+	whereStr := ""
+	if len(whereClauses) > 0 {
+		whereStr = " WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
+	// 2. Get the total count with the same WHERE clause
 	var totalCount int
-	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM books").Scan(&totalCount)
+	countQuery := "SELECT COUNT(*) FROM books" + whereStr
+	err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&totalCount)
 	if err != nil {
 		return nil, err
 	}
 
-	// Then, get the books for the current page
-	rows, err := r.db.QueryContext(ctx, "SELECT id, title, has_sales FROM books ORDER BY id LIMIT ? OFFSET ?", limit, offset)
+	// 3. Get the books for the current page, adding order, limit, and offset
+	listQuery := "SELECT id, title, has_sales FROM books" + whereStr + " ORDER BY id LIMIT ? OFFSET ?"
+	pagedArgs := append(args, limit, offset)
+
+	rows, err := r.db.QueryContext(ctx, listQuery, pagedArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -450,24 +475,25 @@ func (h *Handler) DeleteBooks(c *fiber.Ctx) error {
 }
 
 func (h *Handler) ListBooks(c *fiber.Ctx) error {
-	// 1. Define page size and get current page from query
 	const pageSize = 5
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	if page < 1 {
 		page = 1
 	}
 
-	// 2. Calculate offset
+	// Read search and filter from URL query parameters
+	search := c.Query("search")
+	filter := c.Query("filter", "all") // Default to "all"
+
 	offset := (page - 1) * pageSize
 
-	// 3. Get paginated results from repository
-	result, err := h.repo.ListBooks(c.Context(), pageSize, offset)
+	// Pass search and filter to the repository
+	result, err := h.repo.ListBooks(c.Context(), pageSize, offset, search, filter)
 	if err != nil {
 		h.logger.Error("Failed to list books", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to list books")
 	}
 
-	// 4. Calculate pagination details
 	totalPages := int(math.Ceil(float64(result.TotalCount) / float64(pageSize)))
 	pagination := Pagination{
 		CurrentPage: page,
@@ -478,17 +504,15 @@ func (h *Handler) ListBooks(c *fiber.Ctx) error {
 		NextPage:    page + 1,
 	}
 
-	// 5. Render the template with books and pagination data
-	if err := c.Render("books", fiber.Map{
+	// Render the template, passing the current search/filter values back to it
+	return c.Render("books", fiber.Map{
 		"Books":      result.Books,
 		"Pagination": pagination,
 		"Page":       "books",
 		"NoBooks":    len(result.Books) == 0,
-	}); err != nil {
-		h.logger.Error("Failed to render books template", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).SendString("Failed to render page")
-	}
-	return nil
+		"Search":     search, // Pass search value back to template
+		"Filter":     filter, // Pass filter value back to template
+	})
 }
 
 func (h *Handler) ViewAccount(c *fiber.Ctx) error {
