@@ -58,6 +58,13 @@
             <button name="action" value="add" hx-post="/books/bulk-update-sales" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Mark Selected as On Sale</button>
             <button name="action" value="remove" hx-post="/books/bulk-update-sales" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Remove Selected from Sale</button>
             <button hx-post="/books/delete" hx-confirm="Are you sure you want to delete the selected books?" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Delete Selected</button>
+            <button hx-get="/books/bulk-edit"
+                    hx-target="#book-list-container"
+                    hx-select="#bulk-edit-content"
+                    hx-include="[name='book_ids']:checked"
+                    class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">
+                Edit Selected
+            </button>
         </div>
 
         <table class="w-full border-collapse border border-gray-300">

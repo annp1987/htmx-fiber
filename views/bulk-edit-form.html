@@ -1,0 +1,51 @@
+<div id="bulk-edit-content">
+    <form hx-post="/books/bulk-edit" class="mt-4">
+        <div class="mb-4 flex space-x-2">
+            <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+                Save Changes
+            </button>
+            <a href="/books" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                Cancel
+            </a>
+        </div>
+
+        <table class="w-full border-collapse border border-gray-300">
+            <thead>
+            <tr class="bg-gray-200">
+                <th class="border border-gray-300 p-2">ID</th>
+                <th class="border border-gray-300 p-2">Title</th>
+                <th class="border border-gray-300 p-2">Has Sales</th>
+                <th class="border border-gray-300 p-2">Action</th>
+            </tr>
+            </thead>
+            <tbody>
+            {{ range .Books }}
+            {{ if index $.SelectedIDs .ID }}
+            <tr>
+                <td class="border border-gray-300 p-2">{{ .ID }}</td>
+                <td class="border border-gray-300 p-1">
+                    <input type="text" name="books[{{.ID}}][title]" value="{{ .Title }}" class="w-full p-1 border rounded">
+                </td>
+                <td class="border border-gray-300 p-2 text-center">
+                    <input type="checkbox" name="books[{{.ID}}][has_sales]" class="h-5 w-5" {{ if .HasSales }}checked{{ end }}>
+                </td>
+                <td class="border border-gray-300 p-2 text-center text-sm text-gray-500">Editing...</td>
+            </tr>
+            {{ else }}
+            <tr class="opacity-50 bg-gray-100">
+                <td class="border border-gray-300 p-2">{{ .ID }}</td>
+                <td class="border border-gray-300 p-2">{{ .Title }}</td>
+                <td class="border border-gray-300 p-2 text-center">{{ if .HasSales }}✅{{ else }}❌{{ end }}</td>
+                <td class="border border-gray-300 p-2 text-center">
+                    <div class="flex justify-center space-x-2">
+                        <button class="bg-teal-500 text-white px-3 py-1 rounded" disabled>Play</button>
+                        <a class="bg-gray-600 text-white px-3 py-1 rounded cursor-not-allowed">Edit</a>
+                    </div>
+                </td>
+            </tr>
+            {{ end }}
+            {{ end }}
+            </tbody>
+        </table>
+    </form>
+</div>

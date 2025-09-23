@@ -50,6 +50,7 @@ type Repository interface {
 	GetBook(ctx context.Context, id int) (*Book, error)
 	ListBooks(ctx context.Context, limit, offset int, search, filter string) (*PaginatedBooks, error)
 	BulkUpdateBooksSalesStatus(ctx context.Context, ids []int, status bool) error
+	BulkUpdateBooks(ctx context.Context, booksToUpdate []*Book) error
 	UpdateBook(ctx context.Context, book *Book) error
 	DeleteBooks(ctx context.Context, ids []int) error
 	CreateBook(ctx context.Context, book *Book) (*Book, error)
@@ -217,6 +218,29 @@ func (r *SQLiteRepository) DeleteBooks(ctx context.Context, ids []int) error {
 	return err
 }
 
+func (r *SQLiteRepository) BulkUpdateBooks(ctx context.Context, booksToUpdate []*Book) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // Rollback on error
+
+	stmt, err := tx.PrepareContext(ctx, "UPDATE books SET title = ?, has_sales = ? WHERE id = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, book := range booksToUpdate {
+		_, err := stmt.ExecContext(ctx, book.Title, book.HasSales, book.ID)
+		if err != nil {
+			return err // Rollback will be called
+		}
+	}
+
+	return tx.Commit() // Commit if all updates were successful
+}
+
 // Handler defines the HTTP handlers
 type Handler struct {
 	repo   Repository
@@ -235,6 +259,8 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 	app.Get("/books/create", h.CreateBook)
 	app.Post("/books/create", h.CreateBook)
 	app.Post("/books/bulk-update-sales", h.BulkUpdateSales)
+	app.Get("/books/bulk-edit", h.BulkEditBooks)
+	app.Post("/books/bulk-edit", h.BulkEditBooks)
 	app.Post("/books/delete", h.DeleteBooks)
 
 	app.Get("/books/:id", h.ViewBook)
@@ -512,6 +538,74 @@ func (h *Handler) ListBooks(c *fiber.Ctx) error {
 		"NoBooks":    len(result.Books) == 0,
 		"Search":     search, // Pass search value back to template
 		"Filter":     filter, // Pass filter value back to template
+	})
+}
+
+func (h *Handler) BulkEditBooks(c *fiber.Ctx) error {
+	// --- POST: Save the changes ---
+	if c.Method() == fiber.MethodPost {
+		// 1. Define a local struct to perfectly match the form data, using a string for HasSales.
+		type bookUpdateData struct {
+			Title    string `form:"title"`
+			HasSales string `form:"has_sales"` // Will capture "on" or be empty
+		}
+		payload := new(struct {
+			Books map[string]bookUpdateData `form:"books"`
+		})
+
+		// 2. Parse the form into our new payload struct.
+		if err := c.BodyParser(payload); err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Invalid form data.")
+		}
+
+		// 3. Loop through the parsed data and build a proper Book slice for the repository.
+		var booksToUpdate []*Book
+		for idStr, data := range payload.Books {
+			id, _ := strconv.Atoi(idStr)
+			if id > 0 {
+				book := &Book{
+					ID:    id,
+					Title: data.Title,
+					// Here we correctly interpret the checkbox value: "on" means true, anything else means false.
+					HasSales: data.HasSales == "on",
+				}
+				booksToUpdate = append(booksToUpdate, book)
+			}
+		}
+
+		// 4. Call the repository with the correctly structured data.
+		if err := h.repo.BulkUpdateBooks(c.Context(), booksToUpdate); err != nil {
+			h.logger.Error("Failed to bulk update books", zap.Error(err))
+			return c.Status(500).SendString("Failed to update books")
+		}
+
+		c.Set("HX-Refresh", "true")
+		return c.SendStatus(fiber.StatusOK)
+	}
+
+	// --- GET: Show the edit form (This part remains unchanged) ---
+	idsBytes := c.Context().QueryArgs().PeekMulti("book_ids")
+	if len(idsBytes) == 0 {
+		return h.ListBooks(c)
+	}
+	var selectedIDs []int
+	for _, idBytes := range idsBytes {
+		id, _ := strconv.Atoi(string(idBytes))
+		if id > 0 {
+			selectedIDs = append(selectedIDs, id)
+		}
+	}
+	selectedIDMap := make(map[int]bool)
+	for _, id := range selectedIDs {
+		selectedIDMap[id] = true
+	}
+	result, err := h.repo.ListBooks(c.Context(), 100, 0, "", "all")
+	if err != nil {
+		return c.Status(500).SendString("Could not fetch books.")
+	}
+	return c.Render("bulk-edit-form", fiber.Map{
+		"Books":       result.Books,
+		"SelectedIDs": selectedIDMap,
 	})
 }
 
