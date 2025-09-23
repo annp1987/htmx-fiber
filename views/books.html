@@ -1,37 +1,103 @@
-<!-- views/books.html -->
-<h1 class="text-2xl font-bold mb-4">Books</h1>
-<!-- Debugging output to verify data -->
-<p class="mb-4">Books count: {{ len .Books }}</p>
-<!-- Raw data dump for debugging -->
-<pre>Books data: {{ .Books | printf "%#v" }}</pre>
+<div class="flex justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold">Books</h1>
+    <div class="flex space-x-2">
+        <button hx-post="/books/process-folder"
+                hx-target="#process-result"
+                hx-swap="innerHTML"
+                class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded">
+            Process Folder
+        </button>
+
+        <a href="/books/create" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+            Add New Book
+        </a>
+    </div>
+</div>
+
+<div id="process-result"></div>
+
 {{ if .NoBooks }}
 <p class="text-red-500">No books found in the database.</p>
 {{ else }}
-<table class="w-full border-collapse border border-gray-300">
-    <thead>
-    <tr class="bg-gray-200">
-        <th class="border border-gray-300 p-2">ID</th>
-        <th class="border border-gray-300 p-2">Title</th>
-        <th class="border border-gray-300 p-2">Action</th>
-    </tr>
-    </thead>
-    <tbody>
-    {{ range .Books }}
-    <tr>
-        <td class="border border-gray-300 p-2">{{ .ID }}</td>
-        <td class="border border-gray-300 p-2"><a href="/books/{{ .ID }}" class="text-blue-600 hover:underline">{{ .Title }}</a></td>
-        <td class="border border--gray-300 p-2">
-            <button
-                    hx-get="/play/book/{{ .ID }}"
-                    hx-target="#result"
-                    class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600"
-            >
-                Play
-            </button>
-        </td>
-    </tr>
+
+<form>
+    <div class="mb-4 flex space-x-2">
+        <button name="action" value="add" hx-post="/books/bulk-update-sales" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+            Mark Selected as On Sale
+        </button>
+        <button name="action" value="remove" hx-post="/books/bulk-update-sales" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">
+            Remove Selected from Sale
+        </button>
+        <button hx-post="/books/delete" hx-confirm="Are you sure you want to delete the selected books?" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+            Delete Selected
+        </button>
+    </div>
+
+    <table class="w-full border-collapse border border-gray-300">
+        <thead>
+        <tr class="bg-gray-200">
+            <th class="border border-gray-300 p-2 w-12">Select</th>
+            <th class="border border-gray-300 p-2">ID</th>
+            <th class="border border-gray-300 p-2">Title (View)</th>
+            <th class="border border-gray-300 p-2">Has Sales</th>
+            <th class="border border-gray-300 p-2">Action</th>
+        </tr>
+        </thead>
+        <tbody>
+        {{ range .Books }}
+        <tr>
+            <td class="border border-gray-300 p-2 text-center">
+                <input type="checkbox" name="book_ids" value="{{ .ID }}" class="h-4 w-4">
+            </td>
+            <td class="border border-gray-300 p-2">{{ .ID }}</td>
+            <td class="border border-gray-300 p-2">
+                <a href="/books/{{ .ID }}" class="text-blue-600 hover:underline">{{ .Title }}</a>
+            </td>
+            <td class="border border-gray-300 p-2 text-center">
+                {{ if .HasSales }}✅{{ else }}❌{{ end }}
+            </td>
+            <td class="border border-gray-300 p-2 text-center">
+                <div class="flex justify-center space-x-2">
+                    <button hx-get="/play/book/{{ .ID }}" hx-target="#result" class="bg-teal-500 text-white px-3 py-1 rounded hover:bg-teal-600">
+                        Play
+                    </button>
+                    <a href="/books/{{ .ID }}?edit=true" class="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700">Edit</a>
+                </div>
+            </td>
+        </tr>
+        {{ end }}
+        </tbody>
+    </table>
+</form>
+
+{{ if gt .Pagination.TotalPages 1 }}
+<div class="mt-6 flex justify-center items-center space-x-4">
+    {{ if .Pagination.HasPrev }}
+    <a href="/books?page={{ .Pagination.PrevPage }}" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
+        &laquo; Previous
+    </a>
+    {{ else }}
+    <span class="px-4 py-2 bg-gray-100 text-gray-400 rounded cursor-not-allowed">
+        &laquo; Previous
+    </span>
     {{ end }}
-    </tbody>
-</table>
+
+    <span class="font-semibold">
+        Page {{ .Pagination.CurrentPage }} of {{ .Pagination.TotalPages }}
+    </span>
+
+    {{ if .Pagination.HasNext }}
+    <a href="/books?page={{ .Pagination.NextPage }}" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
+        Next &raquo;
+    </a>
+    {{ else }}
+    <span class="px-4 py-2 bg-gray-100 text-gray-400 rounded cursor-not-allowed">
+        Next &raquo;
+    </span>
+    {{ end }}
+</div>
 {{ end }}
-<div id="result" class="mt-4"></div>
+
+{{ end }}
+
+<div id="result" class="mt-4 p-4 border rounded bg-gray-50"></div>

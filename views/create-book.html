@@ -1,0 +1,19 @@
+<h1 class="text-2xl font-bold mb-4">Add New Book</h1>
+<form action="/books/create" method="post">
+    <div class="mb-4">
+        <label for="title" class="block text-gray-700 text-sm font-bold mb-2">Title</label>
+        <input type="text" name="title" id="title" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+    </div>
+    <div class="mb-4">
+        <label for="has_sales" class="block text-gray-700 text-sm font-bold mb-2">Has Sales</label>
+        <input type="checkbox" name="has_sales" id="has_sales" class="mr-2 leading-tight">
+    </div>
+    <div class="flex items-center space-x-2">
+        <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+            Create Book
+        </button>
+        <a href="/books" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+            Cancel
+        </a>
+    </div>
+</form>

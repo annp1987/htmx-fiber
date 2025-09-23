@@ -1,7 +1,27 @@
-<!-- views/book.html -->
-<h1 class="text-2xl font-bold mb-4">Book Details</h1>
-<div class="bg-white p-4 rounded shadow">
-    <p><strong>ID:</strong> {{ .Book.ID }}</p>
-    <p><strong>Title:</strong> {{ .Book.Title }}</p>
-    <a href="/books" class="text-blue-600 hover:underline">Back to Books</a>
+{{ if .Editing }}
+<h1 class="text-2xl font-bold mb-4">Edit Book</h1>
+<form action="/books/{{ .Book.ID }}" method="post">
+    <div class="mb-4">
+        <label for="title" class="block text-gray-700 text-sm font-bold mb-2">Title</label>
+        <input type="text" name="title" id="title" value="{{ .Book.Title }}" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+    </div>
+    <div class="mb-4">
+        <label for="has_sales" class="block text-gray-700 text-sm font-bold mb-2">Has Sales</label>
+        <input type="checkbox" name="has_sales" id="has_sales" {{ if .Book.HasSales }}checked{{ end }} class="mr-2 leading-tight">
+    </div>
+    <div class="flex items-center space-x-2">
+        <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">Submit</button>
+        <a href="/books/{{ .Book.ID }}" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">Cancel</a>
+    </div>
+</form>
+
+{{ else }}
+<h1 class="text-2xl font-bold mb-4">{{ .Book.Title }}</h1>
+<div class="mb-4">
+    <p><span class="font-bold">ID:</span> {{ .Book.ID }}</p>
+    <p><span class="font-bold">Has Sales:</span> {{ .Book.HasSales }}</p>
 </div>
+<a href="/books/{{ .Book.ID }}?edit=true" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+    Edit
+</a>
+{{ end }}
