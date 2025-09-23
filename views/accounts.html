@@ -1,0 +1,39 @@
+<!-- views/accounts.html -->
+<h1 class="text-2xl font-bold mb-4">Accounts</h1>
+<!-- Debugging output to verify data -->
+<p class="mb-4">Accounts count: {{ len .Accounts }}</p>
+<!-- Raw data dump for debugging -->
+<pre>Accounts data: {{ .Accounts | printf "%#v" }}</pre>
+{{ if .NoAccounts }}
+<p class="text-red-500">No accounts found in the database.</p>
+{{ else }}
+<table class="w-full border-collapse border border-gray-300">
+    <thead>
+    <tr class="bg-gray-200">
+        <th class="border border-gray-300 p-2">ID</th>
+        <th class="border border-gray-300 p-2">Name</th>
+        <th class="border border-gray-300 p-2">Email</th>
+        <th class="border border-gray-300 p-2">Action</th>
+    </tr>
+    </thead>
+    <tbody>
+    {{ range $index, $account := .Accounts }}
+    <tr>
+        <td class="border border-gray-300 p-2">{{ $account.ID }}</td>
+        <td class="border border-gray-300 p-2"><a href="/accounts/{{ $account.ID }}" class="text-blue-600 hover:underline">{{ $account.Name }}</a></td>
+        <td class="border border-gray-300 p-2">{{ $account.Email }}</td>
+        <td class="border border-gray-300 p-2">
+            <button
+                    hx-get="/play/account/{{ $account.ID }}"
+                    hx-target="#result"
+                    class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600"
+            >
+                Play
+            </button>
+        </td>
+    </tr>
+    {{ end }}
+    </tbody>
+</table>
+{{ end }}
+<div id="result" class="mt-4"></div>
