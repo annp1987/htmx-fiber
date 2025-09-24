@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"math"
 	"os"
 	"path/filepath"
@@ -254,7 +257,11 @@ func NewHandler(repo Repository, logger *zap.Logger) *Handler {
 func (h *Handler) RegisterRoutes(app *fiber.App) {
 	app.Get("/", h.Home)
 	app.Get("/books", h.ListBooks)
-	app.Post("/books/process-folder", h.ProcessBooksFolder)
+	//app.Post("/books/process-folder", h.ProcessBooksFolder)
+
+	app.Get("/books/process-start", h.StartProcessBooksUI)
+	app.Get("/books/process-button", h.GetProcessBooksButton)
+	app.Get("/books/process-folder-events", h.ProcessBooksSSE)
 
 	app.Get("/books/create", h.CreateBook)
 	app.Post("/books/create", h.CreateBook)
@@ -276,6 +283,88 @@ func (h *Handler) Home(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to render page")
 	}
 	return nil
+}
+
+func (h *Handler) GetProcessBooksButton(c *fiber.Ctx) error {
+	return c.Render("partials/process-button", fiber.Map{}, "")
+}
+
+func (h *Handler) ProcessBooksSSE(c *fiber.Ctx) error {
+	c.Set("Content-Type", "text/event-stream")
+	c.Set("Cache-Control", "no-cache")
+	c.Set("Connection", "keep-alive")
+
+	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+		importDir := "./import"
+		processedDir := filepath.Join(importDir, "processed")
+		var booksAdded int
+
+		// SERVER LOG: Let's see if the handler starts
+		h.logger.Info("SSE handler started. Preparing to process files.")
+
+		defer func() {
+			w.Flush()
+		}()
+
+		if err := os.MkdirAll(processedDir, 0755); err != nil {
+			h.logger.Error("Failed to create directories", zap.Error(err))
+			return
+		}
+
+		fmt.Fprintf(w, "event: message\ndata: Starting to process files in ./import...\n\n")
+		w.Flush()
+
+		files, err := os.ReadDir(importDir)
+		if err != nil {
+			h.logger.Error("Failed to read import directory", zap.Error(err))
+			fmt.Fprintf(w, "event: error\ndata: Could not read import directory.\n\n")
+			w.Flush()
+			return
+		}
+
+		for _, file := range files {
+			if file.IsDir() || !strings.HasSuffix(file.Name(), ".txt") {
+				continue
+			}
+
+			title := strings.TrimSuffix(file.Name(), ".txt")
+			newBook := &Book{Title: title, HasSales: false}
+
+			if _, err := h.repo.CreateBook(context.Background(), newBook); err != nil {
+				h.logger.Warn("Failed to create book from file", zap.String("file", file.Name()), zap.Error(err))
+				continue
+			}
+
+			originalPath := filepath.Join(importDir, file.Name())
+			processedPath := filepath.Join(processedDir, file.Name())
+			os.Rename(originalPath, processedPath)
+
+			booksAdded++
+			// SERVER LOG: Confirm each message event is being sent
+			h.logger.Info("Sending 'message' event for file", zap.String("title", title))
+			fmt.Fprintf(w, "event: message\ndata: Successfully imported '%s'\n\n", title)
+			w.Flush()
+		}
+
+		// SERVER LOG: Check if we get past the loop
+		h.logger.Info("File loop finished. Preparing to send 'complete' event.")
+
+		finalMessage := fmt.Sprintf("Finished! Processed %d new books.", booksAdded)
+
+		// SERVER LOG: The most important log! Do we get here?
+		h.logger.Info("Sending 'close' event now.", zap.String("message", finalMessage))
+		fmt.Fprintf(w, "event: close\ndata: %s\n\n", finalMessage)
+		w.Flush()
+
+		h.logger.Info("SSE handler function has now finished.")
+	})
+
+	return nil
+}
+
+func (h *Handler) StartProcessBooksUI(c *fiber.Ctx) error {
+	// Render the partial template without the main layout
+	return c.Render("partials/sse-progress", fiber.Map{}, "")
 }
 
 func (h *Handler) ProcessBooksFolder(c *fiber.Ctx) error {
@@ -656,6 +745,9 @@ func (h *Handler) Play(c *fiber.Ctx) error {
 func NewFiber() *fiber.App {
 	engine := html.New("./views", ".html")
 	engine.Reload(true) // Disable template caching for development
+	engine.AddFunc("title", func(s string) string {
+		return cases.Title(language.English).String(s)
+	})
 	app := fiber.New(fiber.Config{
 		Views:       engine,
 		ViewsLayout: "layouts/main",

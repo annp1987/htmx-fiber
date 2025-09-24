@@ -1,12 +1,10 @@
 <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-4">
     <h1 class="text-2xl font-bold">Books</h1>
     <div class="flex space-x-2">
-        <button hx-post="/books/process-folder"
-                hx-target="#process-result"
-                hx-swap="innerHTML"
-                class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded">
-            Process Folder
-        </button>
+        <div id="process-books-container">
+            {{ template "partials/process-button" . }}
+        </div>
+
         <a href="/books/create" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
             Add New Book
         </a>
@@ -48,7 +46,6 @@
 </form>
 
 <div id="book-list-container">
-
     {{ if .NoBooks }}
     <p class="text-red-500 mt-4">No books found for your search/filter criteria.</p>
     {{ else }}

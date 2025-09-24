@@ -1,0 +1,15 @@
+<div hx-ext="sse" sse-connect="/books/process-folder-events" class="mb-4">
+  <div class="p-4 border rounded-md bg-white shadow-sm">
+    <h3 class="font-bold text-lg">Processing Books...</h3>
+
+    <div id="sse-progress" sse-swap="message" class="mt-2 text-sm text-gray-600 max-h-40 overflow-y-auto">
+      <i>Connecting to event stream...</i>
+    </div>
+  </div>
+
+  <div hx-trigger="sse:close"
+       hx-get="/books"
+       hx-target="#book-list-container"
+       hx-select="#book-list-container">
+  </div>
+</div>
